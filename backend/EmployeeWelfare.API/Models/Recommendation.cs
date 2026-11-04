@@ -7,7 +7,6 @@ public class Recommendation
     public Employee? Employee { get; set; }
     public int WelfareProgramId { get; set; }
     public WelfareProgram? WelfareProgram { get; set; }
-    public int MatchScore { get; set; } // 0-100
     public string Reason { get; set; } = string.Empty;
     public string Status { get; set; } = "Available";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
