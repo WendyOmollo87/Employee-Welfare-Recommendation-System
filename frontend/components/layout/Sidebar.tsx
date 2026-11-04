@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Sparkles,
@@ -12,6 +13,7 @@ import {
   LogOut,
   ShieldCheck,
 } from "lucide-react";
+import { fetchNotifications } from "@/lib/api";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -22,8 +24,27 @@ const navItems = [
   { label: "My Profile", href: "/profile", icon: User },
 ];
 
-export default function Sidebar({ unreadCount = 2 }: { unreadCount?: number }) {
+export default function Sidebar() {
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (!stored) return;
+
+    const user = JSON.parse(stored);
+    if (user.role !== "employee") return;
+
+    const load = () => {
+      fetchNotifications(user.id)
+        .then((data) => setUnreadCount(data.filter((n) => !n.isRead).length))
+        .catch(() => setUnreadCount(0));
+    };
+
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [pathname]);
 
   return (
     <aside className="w-[250px] h-screen bg-sidebar flex flex-col justify-between fixed left-0 top-0">

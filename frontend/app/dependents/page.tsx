@@ -1,18 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Users, Pencil, Trash2, X } from "lucide-react";
-
-type Dependent = {
-  id: string;
-  name: string;
-  relationship: string;
-  dob: string;
-  care: string;
-};
+import {
+  fetchDependents,
+  createDependent,
+  updateDependent,
+  deleteDependent,
+  Dependent,
+} from "@/lib/api";
 
 const relationships = ["Child", "Parent", "Spouse", "In-law"];
 
@@ -26,41 +25,48 @@ function calculateAge(dob: string) {
 }
 
 function initials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-const seedDependents: Dependent[] = [
-  {
-    id: "1",
-    name: "John Mensah",
-    relationship: "Child",
-    dob: "2016-04-12",
-    care: "School expenses and after-school care",
-  },
-  {
-    id: "2",
-    name: "Grace Mensah",
-    relationship: "Parent",
-    dob: "1958-09-02",
-    care: "Elder care and medical support",
-  },
-];
-
 export default function DependentsPage() {
-  const [dependents, setDependents] = useState<Dependent[]>(seedDependents);
+  const [employeeId, setEmployeeId] = useState<number | null>(null);
+  const [dependents, setDependents] = useState<Dependent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
     relationship: relationships[0],
     dob: "",
     care: "",
   });
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      const user = JSON.parse(stored);
+      if (user.role === "employee") setEmployeeId(user.id);
+    }
+  }, []);
+
+  const load = async (id: number) => {
+    try {
+      setLoading(true);
+      const data = await fetchDependents(id);
+      setDependents(data);
+      setError(null);
+    } catch {
+      setError("Failed to load dependents.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (employeeId) load(employeeId);
+  }, [employeeId]);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -73,25 +79,55 @@ export default function DependentsPage() {
     setForm({
       name: dep.name,
       relationship: dep.relationship,
-      dob: dep.dob,
-      care: dep.care,
+      dob: dep.dateOfBirth.slice(0, 10),
+      care: dep.careResponsibilities,
     });
     setModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (editingId) {
-      setDependents((prev) =>
-        prev.map((d) => (d.id === editingId ? { ...d, ...form } : d))
-      );
-    } else {
-      setDependents((prev) => [...prev, { id: crypto.randomUUID(), ...form }]);
+  const handleSave = async () => {
+    if (!employeeId) return;
+
+    try {
+      if (editingId) {
+        await updateDependent(editingId, {
+          id: editingId,
+          employeeId,
+          name: form.name,
+          relationship: form.relationship,
+          dateOfBirth: form.dob,
+          careResponsibilities: form.care,
+        });
+      } else {
+        await createDependent({
+          employeeId,
+          name: form.name,
+          relationship: form.relationship,
+          dateOfBirth: form.dob,
+          careResponsibilities: form.care,
+        });
+      }
+      setModalOpen(false);
+      load(employeeId);
+    } catch {
+      alert("Failed to save dependent.");
     }
-    setModalOpen(false);
   };
 
-  const handleRemove = (id: string) => {
-    setDependents((prev) => prev.filter((d) => d.id !== id));
+  const handleRemove = async (id: number) => {
+    if (!employeeId) return;
+    try {
+      await deleteDependent(id);
+      load(employeeId);
+    } catch {
+      alert("Failed to remove dependent.");
+    }
+  };
+
+  const counts = {
+    children: dependents.filter((d) => d.relationship === "Child").length,
+    elderly: dependents.filter((d) => d.relationship === "Parent" || d.relationship === "In-law").length,
+    total: dependents.length,
   };
 
   return (
@@ -107,7 +143,28 @@ export default function DependentsPage() {
         <Button onClick={openAddModal}>Add dependent</Button>
       </div>
 
-      {dependents.length === 0 ? (
+      <div className="grid grid-cols-3 gap-4 mt-6">
+        <Card>
+          <p className="text-2xl font-bold text-heading">{counts.children}</p>
+          <p className="text-sm font-medium text-heading mt-1">Children</p>
+          <p className="text-xs text-muted mt-1">Registered as Child</p>
+        </Card>
+        <Card>
+          <p className="text-2xl font-bold text-heading">{counts.elderly}</p>
+          <p className="text-sm font-medium text-heading mt-1">Elderly</p>
+          <p className="text-xs text-muted mt-1">Parents and in-laws</p>
+        </Card>
+        <Card>
+          <p className="text-2xl font-bold text-heading">{counts.total}</p>
+          <p className="text-sm font-medium text-heading mt-1">Total</p>
+          <p className="text-xs text-muted mt-1">All dependents</p>
+        </Card>
+      </div>
+
+      {loading && <p className="text-muted text-sm mt-6">Loading dependents…</p>}
+      {error && <p className="text-destructive text-sm mt-6">{error}</p>}
+
+      {!loading && !error && dependents.length === 0 && (
         <Card className="mt-6 flex flex-col items-center text-center py-12">
           <div className="bg-beige rounded-full p-4">
             <Users className="text-muted" size={28} />
@@ -123,7 +180,9 @@ export default function DependentsPage() {
             Add your first dependent
           </button>
         </Card>
-      ) : (
+      )}
+
+      {!loading && !error && dependents.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           {dependents.map((dep) => (
             <Card key={dep.id}>
@@ -154,8 +213,10 @@ export default function DependentsPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-muted mt-3">Age {calculateAge(dep.dob)}</p>
-              <p className="text-sm text-heading mt-1">{dep.care}</p>
+              <p className="text-sm text-muted mt-3">
+                Age {calculateAge(dep.dateOfBirth)}
+              </p>
+              <p className="text-sm text-heading mt-1">{dep.careResponsibilities}</p>
             </Card>
           ))}
         </div>
@@ -194,15 +255,11 @@ export default function DependentsPage() {
                 </label>
                 <select
                   value={form.relationship}
-                  onChange={(e) =>
-                    setForm({ ...form, relationship: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, relationship: e.target.value })}
                   className="w-full h-[42px] rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
                 >
                   {relationships.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
+                    <option key={r} value={r}>{r}</option>
                   ))}
                 </select>
               </div>

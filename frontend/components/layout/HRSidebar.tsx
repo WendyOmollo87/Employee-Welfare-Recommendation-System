@@ -7,6 +7,7 @@ import {
   Users,
   AlertTriangle,
   BarChart3,
+  Settings,
   LogOut,
   ShieldCheck,
 } from "lucide-react";
@@ -15,6 +16,7 @@ const navItems = [
   { label: "Dashboard", href: "/hr/dashboard", icon: LayoutDashboard },
   { label: "Employees", href: "/hr/employees", icon: Users },
   { label: "Welfare Alerts", href: "/hr/alerts", icon: AlertTriangle },
+  { label: "Programs", href: "/hr/programs", icon: Settings },
   { label: "Analytics", href: "/hr/analytics", icon: BarChart3 },
 ];
 

@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import DashboardShell from "@/components/layout/DashboardShell";
 import Card from "@/components/ui/Card";
 import {
@@ -34,10 +38,10 @@ const recommendations = [
 ];
 
 const quickActions = [
-  { label: "Update profile", icon: UserCog },
-  { label: "Add dependent", icon: UserPlus },
-  { label: "Report life event", icon: FileWarning },
-  { label: "View recommendations", icon: ListChecks },
+  { label: "Update profile", icon: UserCog, href: "/profile" },
+  { label: "Add dependent", icon: UserPlus, href: "/dependents" },
+  { label: "Report life event", icon: FileWarning, href: "/welfare-information" },
+  { label: "View recommendations", icon: ListChecks, href: "/recommendations" },
 ];
 
 const updates = [
@@ -46,20 +50,35 @@ const updates = [
 ];
 
 export default function DashboardPage() {
+  const [firstName, setFirstName] = useState<string>("");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (!stored) return;
+    const user = JSON.parse(stored);
+    const name: string = user.name || "";
+    setFirstName(name.split(" ")[0]);
+  }, []);
+
   return (
     <DashboardShell>
       <div className="bg-primary rounded-card px-8 py-6 flex items-center justify-between">
         <div>
           <p className="text-white/90 text-sm">Welcome back,</p>
-          <h1 className="text-white text-2xl font-bold mt-1">David</h1>
+          <h1 className="text-white text-2xl font-bold mt-1">
+            {firstName || "User"}
+          </h1>
           <p className="text-white/90 text-sm mt-2 max-w-md">
             You have 6 welfare programs matched to your profile. Review your
             personalized recommendations below.
           </p>
         </div>
-        <button className="bg-background text-muted text-sm font-medium px-5 h-[45px] rounded-lg whitespace-nowrap">
+        <Link
+          href="/recommendations"
+          className="bg-background text-muted text-sm font-medium px-5 h-[45px] rounded-lg whitespace-nowrap cursor-pointer inline-flex items-center"
+        >
           View recommendations →
-        </button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-4 gap-4 mt-6">
@@ -82,9 +101,12 @@ export default function DashboardPage() {
             <span className="text-xs font-medium text-accent">{category}</span>
             <h3 className="text-heading font-semibold mt-2">{title}</h3>
             <p className="text-sm text-muted mt-2">{description}</p>
-            <button className="text-primary text-sm font-medium mt-4">
+            <Link
+              href="/recommendations"
+              className="text-primary text-sm font-medium mt-4 inline-block cursor-pointer"
+            >
               View details →
-            </button>
+            </Link>
           </Card>
         ))}
       </div>
@@ -93,14 +115,15 @@ export default function DashboardPage() {
         <Card className="col-span-2">
           <h3 className="text-heading font-semibold mb-4">Quick actions</h3>
           <div className="grid grid-cols-2 gap-3">
-            {quickActions.map(({ label, icon: Icon }) => (
-              <button
+            {quickActions.map(({ label, icon: Icon, href }) => (
+              <Link
                 key={label}
-                className="flex items-center gap-2 h-[45px] px-4 rounded-lg border border-border text-sm text-heading hover:bg-primary-light"
+                href={href}
+                className="flex items-center gap-2 h-[45px] px-4 rounded-lg border border-border text-sm text-heading hover:bg-primary-light cursor-pointer"
               >
                 <Icon size={16} className="text-accent" />
                 {label}
-              </button>
+              </Link>
             ))}
           </div>
         </Card>
