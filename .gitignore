@@ -1,0 +1,7 @@
+backend/EmployeeWelfare.API/bin/
+backend/EmployeeWelfare.API/obj/
+frontend/node_modules/
+frontend/.next/
+machine-learning/venv/
+__pycache__/
+*.sql
