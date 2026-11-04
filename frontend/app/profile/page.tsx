@@ -1,26 +1,113 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { LogOut } from "lucide-react";
+import { LogOut, Check } from "lucide-react";
+import { fetchEmployee, updateEmployee, Employee } from "@/lib/api";
 
 export default function ProfilePage() {
+  const [userId, setUserId] = useState<number | null>(null);
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [form, setForm] = useState({
-    fullName: "David Mensah",
-    email: "david.mensah@northbridge.com",
-    age: "38",
-    gender: "Male",
+    fullName: "",
+    email: "",
+    age: "",
+    gender: "",
+    maritalStatus: "",
   });
 
-  const handleSave = () => {
-    setEditing(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      const user = JSON.parse(stored);
+      if (user.role === "employee") setUserId(user.id);
+    }
+  }, []);
+
+  const load = async (id: number) => {
+    try {
+      setLoading(true);
+      const data = await fetchEmployee(id);
+      setEmployee(data);
+      setForm({
+        fullName: data.fullName,
+        email: data.email,
+        age: String(data.age),
+        gender: data.gender,
+        maritalStatus: data.maritalStatus,
+      });
+      setError(null);
+    } catch {
+      setError("Failed to load profile.");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    if (userId) load(userId);
+  }, [userId]);
+
+  const handleSave = async () => {
+    if (!userId || !employee) return;
+
+    try {
+      setSaving(true);
+      await updateEmployee(userId, {
+        ...employee,
+        fullName: form.fullName,
+        email: form.email,
+        age: Number(form.age),
+        gender: form.gender,
+        maritalStatus: form.maritalStatus,
+      });
+
+      // Keep localStorage in sync so other pages show the new name
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const user = JSON.parse(stored);
+        user.name = form.fullName;
+        user.email = form.email;
+        localStorage.setItem("user", JSON.stringify(user));
+      }
+
+      setEditing(false);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+      load(userId);
+    } catch {
+      alert("Failed to save profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initials = (name: string) =>
+    name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+
+  if (loading) {
+    return (
+      <DashboardShell>
+        <p className="text-muted text-sm">Loading profile…</p>
+      </DashboardShell>
+    );
+  }
+
+  if (error || !employee) {
+    return (
+      <DashboardShell>
+        <p className="text-destructive text-sm">{error || "Profile not found."}</p>
+      </DashboardShell>
+    );
+  }
 
   return (
     <DashboardShell>
@@ -34,34 +121,41 @@ export default function ProfilePage() {
         {editing ? (
           <div className="flex gap-3">
             <button
-              onClick={() => setEditing(false)}
-              className="text-sm font-medium text-muted px-4 h-[42px] rounded-lg border border-border"
+              onClick={() => {
+                setEditing(false);
+                setForm({
+                  fullName: employee.fullName,
+                  email: employee.email,
+                  age: String(employee.age),
+                  gender: employee.gender,
+                  maritalStatus: employee.maritalStatus,
+                });
+              }}
+              className="text-sm font-medium text-muted px-4 h-[42px] rounded-lg border border-border cursor-pointer"
             >
               Cancel
             </button>
-            <Button onClick={handleSave}>Save changes</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
           </div>
         ) : (
           <Button onClick={() => setEditing(true)}>Edit profile</Button>
         )}
       </div>
 
-      {saved && (
-        <p className="text-sm text-accent font-medium mt-3">
-          Profile updated successfully
-        </p>
-      )}
-
       <Card className="mt-6 flex items-center gap-4">
         <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-xl font-semibold">
-          DM
+          {initials(employee.fullName)}
         </div>
         <div>
-          <p className="text-heading font-semibold text-lg">David Mensah</p>
+          <p className="text-heading font-semibold text-lg">{employee.fullName}</p>
           <p className="text-sm text-muted">
-            Logistics Coordinator · Operations
+            {employee.position} · {employee.department}
           </p>
-          <p className="text-xs text-muted mt-1">Employee ID: NB-20481</p>
+          <p className="text-xs text-muted mt-1">
+            Employee ID: {employee.employeeCode}
+          </p>
         </div>
       </Card>
 
@@ -84,6 +178,7 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-heading mb-1">
               Email
@@ -100,12 +195,14 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-heading mb-1">
               Age
             </label>
             {editing ? (
               <input
+                type="number"
                 value={form.age}
                 onChange={(e) => setForm({ ...form, age: e.target.value })}
                 className="w-full h-[42px] rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
@@ -116,6 +213,7 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-heading mb-1">
               Gender
@@ -124,7 +222,7 @@ export default function ProfilePage() {
               <select
                 value={form.gender}
                 onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                className="w-full h-[42px] rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                className="w-full h-[42px] rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary cursor-pointer"
               >
                 <option>Male</option>
                 <option>Female</option>
@@ -133,6 +231,28 @@ export default function ProfilePage() {
             ) : (
               <div className="w-full h-[42px] rounded-lg bg-beige px-3 flex items-center text-sm text-heading">
                 {form.gender}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-heading mb-1">
+              Marital status
+            </label>
+            {editing ? (
+              <select
+                value={form.maritalStatus}
+                onChange={(e) => setForm({ ...form, maritalStatus: e.target.value })}
+                className="w-full h-[42px] rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary cursor-pointer"
+              >
+                <option>Single</option>
+                <option>Married</option>
+                <option>Divorced</option>
+                <option>Widowed</option>
+              </select>
+            ) : (
+              <div className="w-full h-[42px] rounded-lg bg-beige px-3 flex items-center text-sm text-heading">
+                {form.maritalStatus}
               </div>
             )}
           </div>
@@ -147,7 +267,7 @@ export default function ProfilePage() {
               Department
             </label>
             <div className="w-full h-[42px] rounded-lg bg-beige px-3 flex items-center text-sm text-heading">
-              Operations
+              {employee.department}
             </div>
           </div>
           <div>
@@ -155,7 +275,7 @@ export default function ProfilePage() {
               Position
             </label>
             <div className="w-full h-[42px] rounded-lg bg-beige px-3 flex items-center text-sm text-heading">
-              Logistics Coordinator
+              {employee.position}
             </div>
           </div>
           <div>
@@ -163,7 +283,7 @@ export default function ProfilePage() {
               Employee ID
             </label>
             <div className="w-full h-[42px] rounded-lg bg-beige px-3 flex items-center text-sm text-muted">
-              NB-20481
+              {employee.employeeCode}
             </div>
           </div>
         </div>
@@ -174,22 +294,36 @@ export default function ProfilePage() {
         <div className="space-y-2 text-sm">
           <div className="flex justify-between text-heading">
             <span className="text-muted">Email</span>
-            <span>david.mensah@northbridge.com</span>
+            <span>{employee.email}</span>
           </div>
           <div className="flex justify-between text-heading">
             <span className="text-muted">Signed in as</span>
-            <span>David Mensah</span>
+            <span>{employee.fullName}</span>
           </div>
         </div>
         <p className="text-xs text-muted mt-4">
           Your welfare data is encrypted and only accessible to authorized
           welfare administrators.
         </p>
-        <button className="flex items-center gap-2 text-sm font-medium text-destructive border border-destructive/40 rounded-lg px-4 h-9 mt-4">
+        <button className="flex items-center gap-2 text-sm font-medium text-destructive border border-destructive/40 rounded-lg px-4 h-9 mt-4 cursor-pointer">
           <LogOut size={16} />
           Logout
         </button>
       </Card>
+
+      {showToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-card border border-accent/40 rounded-card shadow-lg p-4 flex items-start gap-3 max-w-sm">
+          <div className="bg-accent/10 rounded-full p-2">
+            <Check className="text-accent" size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-heading">Profile updated</p>
+            <p className="text-xs text-muted mt-0.5">
+              Your changes have been saved.
+            </p>
+          </div>
+        </div>
+      )}
     </DashboardShell>
   );
 }
